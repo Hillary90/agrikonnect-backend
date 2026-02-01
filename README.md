@@ -145,8 +145,8 @@ Agrikonnect Backend is a RESTful API built with Flask that powers the Agricultur
 
 ```bash
 Python 3.9+
-PostgreSQL 14+
-Docker & Docker Compose (optional but recommended)
+PostgreSQL 14+ (for local development)
+Docker & Docker Compose (recommended for development)
 Git
 ```
 
@@ -155,7 +155,7 @@ Git
 > **Choose your preferred setup method**
 
 <details open>
-<summary><b>Option 1: Docker Setup (Recommended)</b></summary>
+<summary><b>Option 1: Docker Setup (Recommended for Development)</b></summary>
 
 <br>
 
@@ -165,10 +165,24 @@ git clone https://github.com/pyrxallan/agrikonnect-backend.git
 cd agrikonnect-backend
 ```
 
-**Step 2:** Configure environment
+**Step 2:** Configure environment variables
 ```bash
 cp .env.example .env
-# Edit .env with your configuration
+```
+
+Edit the `.env` file with your configuration. At minimum, update the secret keys:
+
+```bash
+# Generate secure secret keys
+chmod +x setup_env.sh
+./setup_env.sh
+```
+
+Then update your `.env` file with the generated keys and your database configuration:
+```env
+SECRET_KEY=generated-secret-key-here
+JWT_SECRET_KEY=generated-jwt-secret-key-here
+DATABASE_URL=postgresql://postgres:password@db:5432/agrikonnect
 ```
 
 **Step 3:** Build and run with Docker Compose
@@ -176,12 +190,18 @@ cp .env.example .env
 docker-compose up --build
 ```
 
+This will:
+- Start a PostgreSQL database container
+- Build and start the Flask backend API on port 5000
+- Start the notification microservice on port 5001
+- Automatically run database migrations
+
 The API will be available at `http://localhost:5000`
 
 </details>
 
 <details>
-<summary><b>Option 2: Local Development</b></summary>
+<summary><b>Option 2: Local Development Setup</b></summary>
 
 <br>
 
@@ -207,19 +227,30 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-**Step 4:** Set up environment variables
+**Step 4:** Set up PostgreSQL database
+Install PostgreSQL 14+ locally and create a database:
+```sql
+CREATE DATABASE agrikonnect;
+```
+
+**Step 5:** Configure environment variables
 ```bash
 cp .env.example .env
-# Edit .env with your configuration
 ```
 
-**Step 5:** Initialize the database
+Edit `.env` with your local PostgreSQL connection and generated secrets:
+```env
+DATABASE_URL=postgresql://username:password@localhost:5432/agrikonnect
+SECRET_KEY=your-generated-secret-key
+JWT_SECRET_KEY=your-generated-jwt-secret-key
+```
+
+**Step 6:** Initialize the database
 ```bash
 flask db upgrade
-flask seed  # Optional: seed test data
 ```
 
-**Step 6:** Run the application
+**Step 7:** Run the application
 ```bash
 flask run
 ```
@@ -228,27 +259,70 @@ The API will be available at `http://localhost:5000`
 
 </details>
 
+### Creating Your First User
+
+Once the backend is running, create a user account through the API:
+
+**Using cURL:**
+```bash
+curl -X POST http://localhost:5000/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "test@example.com",
+    "password": "securepassword123",
+    "first_name": "John",
+    "last_name": "Doe",
+    "role": "farmer"
+  }'
+```
+
+**Using Swagger UI:**
+1. Open `http://localhost:5000/api/docs`
+2. Navigate to Auth → POST /api/v1/auth/register
+3. Click "Try it out" and fill in user details
+4. Click "Execute"
+
+**Valid roles:** `farmer`, `expert`
+
+### Testing the Setup
+
+**Health Check:**
+```bash
+curl http://localhost:5000/api/docs
+```
+
+**Login Test:**
+```bash
+curl -X POST http://localhost:5000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "test@example.com",
+    "password": "securepassword123"
+  }'
+```
+
 ### Environment Variables
 
-Create a `.env` file in the root directory:
+Create a `.env` file in the root directory with the following variables:
 
 ```env
 # Flask Configuration
 FLASK_APP=run.py
 FLASK_ENV=development
-SECRET_KEY=your-secret-key-here
+SECRET_KEY=generate-with-setup-script
 
 # Database Configuration
-DATABASE_URL=postgresql://user:password@localhost:5432/agrikonnect
-TEST_DATABASE_URL=postgresql://user:password@localhost:5432/agrikonnect_test
+# Docker: postgresql://postgres:password@db:5432/agrikonnect
+# Local: postgresql://username:password@localhost:5432/agrikonnect
+DATABASE_URL=postgresql://postgres:password@db:5432/agrikonnect
 
 # JWT Configuration
-JWT_SECRET_KEY=your-jwt-secret-key
+JWT_SECRET_KEY=generate-with-setup-script
 JWT_ACCESS_TOKEN_EXPIRES=3600
 JWT_REFRESH_TOKEN_EXPIRES=2592000
 
-# CORS Configuration
-CORS_ORIGINS=http://localhost:3000
+# CORS Configuration (comma-separated, no spaces)
+CORS_ORIGINS=http://localhost:5173,http://localhost:3000,http://localhost:5000
 
 # File Upload Configuration
 UPLOAD_FOLDER=uploads
@@ -256,7 +330,24 @@ MAX_CONTENT_LENGTH=16777216
 
 # Notification Service
 NOTIFICATION_SERVICE_URL=http://localhost:5001
+
+# Email Configuration (for password reset)
+MAIL_SERVER=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USE_TLS=true
+MAIL_USE_SSL=false
+MAIL_USERNAME=your-email@gmail.com
+MAIL_PASSWORD=your-app-password
+MAIL_DEFAULT_SENDER=noreply@agrikonnect.com
+
+# Password Reset
+PASSWORD_RESET_EXPIRES=3600
+
+# Frontend URL (for password reset links)
+FRONTEND_URL=http://localhost:5173
 ```
+
+**Note:** Use the `setup_env.sh` script to generate secure `SECRET_KEY` and `JWT_SECRET_KEY` values.
 
 ## Project Structure
 
@@ -564,7 +655,69 @@ pytest -v
 
 ## Deployment
 
-> **Production-ready deployment strategies**
+> **Production-ready deployment strategies and security considerations**
+
+### Development vs Production Configuration
+
+#### Environment Variables for Production
+
+**Remove/Change for Production:**
+- Set `FLASK_ENV=production`
+- Use strong, unique `SECRET_KEY` and `JWT_SECRET_KEY`
+- Configure production database URL
+- Set secure CORS origins (only your frontend domain)
+- Configure email settings for real SMTP server
+- Set `FRONTEND_URL` to your production frontend URL
+
+**Example Production .env:**
+```env
+FLASK_ENV=production
+SECRET_KEY=your-production-secret-key-here
+JWT_SECRET_KEY=your-production-jwt-secret-key-here
+DATABASE_URL=postgresql://user:password@production-db-host:5432/agrikonnect
+CORS_ORIGINS=https://yourdomain.com
+MAIL_USERNAME=your-production-email@domain.com
+MAIL_PASSWORD=your-production-app-password
+FRONTEND_URL=https://yourdomain.com
+```
+
+#### Security Checklist for Production
+
+- [ ] **Never commit `.env` files** - Add `.env` to `.gitignore`
+- [ ] **Use environment variables** - Set secrets via platform environment variables
+- [ ] **Enable HTTPS** - Use SSL/TLS certificates
+- [ ] **Database security** - Use strong passwords, restrict access
+- [ ] **Rate limiting** - Configure appropriate limits for production load
+- [ ] **Logging** - Set up proper logging for production monitoring
+- [ ] **Backup strategy** - Regular database backups
+- [ ] **Monitoring** - Set up error tracking and performance monitoring
+
+### Database Setup
+
+#### Single Production Database
+
+For production, use **one database** instead of separate development/test databases:
+
+```env
+# Production - Single database
+DATABASE_URL=postgresql://user:password@prod-db:5432/agrikonnect
+
+# Remove TEST_DATABASE_URL for production
+# TEST_DATABASE_URL=postgresql://user:password@localhost:5432/agrikonnect_test
+```
+
+#### Database Migration Strategy
+
+```bash
+# Always run migrations on deployment
+flask db upgrade
+
+# For zero-downtime deployments:
+# 1. Create new migration files
+# 2. Test migrations on staging
+# 3. Apply migrations before deploying code
+# 4. Rollback plan ready if needed
+```
 
 ### Supported Platforms
 
@@ -575,15 +728,68 @@ pytest -v
 | ![Heroku](https://img.shields.io/badge/Heroku-166534?logo=heroku&logoColor=white) | Supported | [Guide](#heroku) |
 | ![AWS](https://img.shields.io/badge/AWS-4ade80?logo=amazon-aws&logoColor=white) | Supported | [Guide](#aws) |
 | ![DigitalOcean](https://img.shields.io/badge/DigitalOcean-166534?logo=digitalocean&logoColor=white) | Supported | [Guide](#digitalocean) |
+| ![Docker](https://img.shields.io/badge/Docker-166534?logo=docker&logoColor=white) | Recommended | [Guide](#docker) |
 
 </div>
+
+### Docker Production Deployment
+
+**Create production docker-compose.yml:**
+```yaml
+version: '3.8'
+
+services:
+  db:
+    image: postgres:14-alpine
+    environment:
+      POSTGRES_DB: agrikonnect
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - agrikonnect
+
+  app:
+    image: agrikonnect-backend:latest
+    environment:
+      FLASK_ENV: production
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/agrikonnect
+      SECRET_KEY: ${SECRET_KEY}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+    ports:
+      - "8000:5000"
+    depends_on:
+      - db
+    networks:
+      - agrikonnect
+
+volumes:
+  postgres_data:
+
+networks:
+  agrikonnect:
+```
 
 ### Heroku
 
 ```bash
-heroku create your-app-name
+# Create app
+heroku create your-agrikonnect-backend
+
+# Add PostgreSQL
 heroku addons:create heroku-postgresql:hobby-dev
+
+# Set environment variables
+heroku config:set FLASK_ENV=production
+heroku config:set SECRET_KEY=your-production-secret
+heroku config:set JWT_SECRET_KEY=your-production-jwt-secret
+heroku config:set FRONTEND_URL=https://your-frontend-domain.com
+
+# Deploy
 git push heroku main
+
+# Run migrations
 heroku run flask db upgrade
 ```
 
@@ -591,9 +797,10 @@ heroku run flask db upgrade
 
 - Use Docker containers for deployment
 - Configure environment variables in platform settings
-- Set up PostgreSQL database instance
+- Set up PostgreSQL database instance (RDS for AWS)
 - Configure reverse proxy (Nginx) for production
-- Enable HTTPS with SSL certificates
+- Enable HTTPS with SSL certificates (Let's Encrypt)
+- Set up load balancer for scalability
 
 ### Database Migrations
 
@@ -604,9 +811,28 @@ flask db migrate -m "Description of changes"
 # Apply migrations
 flask db upgrade
 
-# Rollback migration
+# Check migration status
+flask db current
+
+# Rollback if needed
 flask db downgrade
 ```
+
+### Production Monitoring
+
+**Essential monitoring setup:**
+- Application logs (use structured logging)
+- Database performance monitoring
+- Error tracking (Sentry, Rollbar)
+- Performance metrics (response times, throughput)
+- Health check endpoints for load balancers
+
+**Health Check Endpoint:**
+```
+GET /api/v1/health
+```
+
+Returns system status for monitoring tools.
 
 ### Environment Configuration
 
