@@ -1,9 +1,4 @@
-from flask import request
-from flask_jwt_extended import jwt_required, get_jwt_identity
-from flask_restx import Namespace, Resource
-from app.models.message import Message
-from app.models.user import User
-from app.extensions import db
+from flask_restx import Namespace
 
 message_ns = Namespace('messages', description='User messages')
 
