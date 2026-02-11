@@ -8,6 +8,7 @@ from .config import Config
 from .extensions import db, mail
 from .routes import register_routes
 from app.routes.messages import messages_bp
+from app.routes.users import users_bp
 
 jwt_blocklist = set()
 
@@ -16,8 +17,12 @@ def create_app(config_class=Config):
     app.config.from_object(config_class)
 
     # Initialize extensions
-    # Explicitly allow the frontend origin for API routes and enable credentials/support for preflight
-    CORS(app, resources={r"/api/*": {"origins": ["http://localhost:5173", "http://localhost:3000", "http://localhost:5000", "https://agrikonnect.onrender.com"]}}, supports_credentials=True)
+    # CORS configuration - allow frontend origins with credentials
+    CORS(app, 
+         origins=app.config['CORS_ORIGINS'],
+         supports_credentials=True,
+         allow_headers=["Content-Type", "Authorization"],
+         methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
     jwt = JWTManager(app)
     db.init_app(app)
     mail.init_app(app)
@@ -48,6 +53,11 @@ def create_app(config_class=Config):
 
     # Register routes
     register_routes(api)
+    
+    # Register legacy blueprints
+    app.register_blueprint(messages_bp)
+    app.register_blueprint(users_bp)
+
 
     # Create database tables
     with app.app_context():
