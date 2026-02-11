@@ -3,8 +3,6 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flask_migrate import Migrate
 from flask_restx import Api
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 
 from .config import Config
 from .extensions import db, mail
@@ -18,6 +16,8 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
 
+
+    CORS(app, resources={r"/api/*": {"origins": ["http://localhost:5173", "http://localhost:3000", "http://localhost:5000"]}}, supports_credentials=True)
     # Initialize rate limiter
     limiter = Limiter(
         app=app,
