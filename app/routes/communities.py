@@ -4,6 +4,12 @@ from flask import request
 from ..models.community import Community
 from ..models.user import User
 from ..extensions import db
+from ..utils.validation import (
+    validate_required_fields,
+    validate_string_length,
+    sanitize_string,
+    validate_url
+)
 
 community_ns = Namespace('communities', description='Community operations')
 
@@ -45,20 +51,51 @@ class CommunityList(Resource):
     @jwt_required()
     def post(self):
         """Create a new community"""
-        data = request.json
-        
-        if Community.query.filter_by(name=data['name']).first():
-            community_ns.abort(400, 'Community with this name already exists')
-        
-        community = Community(
-            name=data['name'],
-            description=data.get('description'),
-            image_url=data.get('image_url'),
-            category=data.get('category')
-        )
-        community.save()
-        
-        return community.to_dict(get_jwt_identity()), 201
+        try:
+            data = request.json
+            
+            # Validate required fields
+            is_valid, error = validate_required_fields(data, ['name'])
+            if not is_valid:
+                return {'error': error}, 400
+            
+            # Sanitize and validate name
+            name = sanitize_string(data['name'], 100)
+            is_valid, error = validate_string_length(name, 3, 100, 'Name')
+            if not is_valid:
+                return {'error': error}, 400
+            
+            # Check duplicate
+            if Community.query.filter_by(name=name).first():
+                return {'error': 'Community with this name already exists'}, 400
+            
+            # Validate description
+            description = sanitize_string(data.get('description'), 500)
+            if description:
+                is_valid, error = validate_string_length(description, 10, 500, 'Description')
+                if not is_valid:
+                    return {'error': error}, 400
+            
+            # Validate image URL
+            image_url = sanitize_string(data.get('image_url'), 500)
+            if image_url and not validate_url(image_url):
+                return {'error': 'Invalid image URL format'}, 400
+            
+            # Validate category
+            category = sanitize_string(data.get('category'), 50)
+            
+            community = Community(
+                name=name,
+                description=description,
+                image_url=image_url,
+                category=category
+            )
+            community.save()
+            
+            return community.to_dict(get_jwt_identity()), 201
+        except Exception as e:
+            db.session.rollback()
+            return {'error': 'Failed to create community'}, 500
 
 @community_ns.route('/<int:id>')
 class CommunityDetail(Resource):
@@ -169,34 +206,31 @@ class CommunityMessages(Resource):
     @jwt_required()
     def post(self, id):
         """Send a message to community chat"""
-        from ..models import Comment
-        from ..models.notification import Notification
-        user_id = int(get_jwt_identity())
-        data = request.get_json()
-        
-        message = Comment(
-            content=data.get('content'),
-            author_id=user_id,
-            community_id=id
-        )
-        db.session.add(message)
-        db.session.commit()
-        
-        # Notify community members
-        community = Community.query.get(id)
-        if community:
-            sender = User.query.get(user_id)
-            if sender:
-                for member in community.members:
-                    if member.id != user_id:
-                        notification = Notification(
-                            user_id=member.id,
-                            type='community_message',
-                            title=f'New message in {community.name}',
-                            message=f'{sender.first_name} {sender.last_name}: {data.get("content")[:50]}...',
-                            link=f'/communities/{id}'
-                        )
-                        db.session.add(notification)
-                db.session.commit()
-        
-        return {'id': message.id, 'content': message.content, 'author': {'name': message.author.full_name}, 'created_at': message.created_at.isoformat()}, 201
+        try:
+            from ..models import Comment
+            from ..models.notification import Notification
+            user_id = int(get_jwt_identity())
+            data = request.get_json()
+            
+            # Validate content
+            is_valid, error = validate_required_fields(data, ['content'])
+            if not is_valid:
+                return {'error': error}, 400
+            
+            content = sanitize_string(data.get('content'), 1000)
+            is_valid, error = validate_string_length(content, 1, 1000, 'Message')
+            if not is_valid:
+                return {'error': error}, 400
+            
+            message = Comment(
+                content=content,
+                author_id=user_id,
+                community_id=id
+            )
+            db.session.add(message)
+            db.session.commit()
+            
+            return {'id': message.id, 'content': message.content, 'author': {'name': message.author.full_name}, 'created_at': message.created_at.isoformat()}, 201
+        except Exception as e:
+            db.session.rollback()
+            return {'error': 'Failed to send message'}, 500
