@@ -3,12 +3,14 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flask_migrate import Migrate
 from flask_restx import Api
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+import os
 
 from .config import Config
 from .extensions import db, mail
 from .routes import register_routes
 from app.routes.messages import messages_bp
-from app.routes.users import users_bp
 
 jwt_blocklist = set()
 
@@ -16,8 +18,13 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
 
-    # Initialize extensions
-    # CORS configuration - allow frontend origins with credentials
+    limiter = Limiter(
+        app=app,
+        key_func=get_remote_address,
+        default_limits=["1000 per day", "200 per hour"],
+        storage_uri="memory://"
+    )
+
     CORS(app, 
          origins=app.config['CORS_ORIGINS'],
          supports_credentials=True,
@@ -32,26 +39,20 @@ def create_app(config_class=Config):
     def check_if_token_revoked(jwt_header, jwt_payload):
         return jwt_payload['jti'] in jwt_blocklist
 
-    # Initialize API
-    api = Api(
-        app,
-        title='Agrikonnect API',
-        version='1.0',
-        description='RESTful API for Agrikonnect agricultural platform. This API provides endpoints for user authentication, community management, expert consultations, and agricultural content sharing.',
-        doc=False
-    )
+    api = Api(app, title='Agrikonnect API', version='1.0', doc=False)
 
-    # Custom Swagger UI route
     @app.route('/api/docs')
     def swagger_ui():
         return render_template('swagger.html')
 
-    # Serve static files
     @app.route('/static/<path:filename>')
     def static_files(filename):
         return send_from_directory('app/static', filename)
 
-    # Register routes
+    @app.route('/uploads/<path:filename>')
+    def uploaded_files(filename):
+        return send_from_directory(os.path.join(app.root_path, '..', 'uploads'), filename)
+
     register_routes(api)
     
     # Register legacy blueprints
@@ -59,7 +60,6 @@ def create_app(config_class=Config):
     app.register_blueprint(users_bp)
 
 
-    # Create database tables
     with app.app_context():
         db.create_all()
 
