@@ -12,6 +12,7 @@ from .extensions import db, mail
 from .routes import register_routes
 from app.routes.messages import messages_bp
 from app.routes.users import users_bp
+from app.models import Notification  
 
 jwt_blocklist = set()
 
