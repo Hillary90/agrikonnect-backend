@@ -11,6 +11,7 @@ from .config import Config
 from .extensions import db, mail
 from .routes import register_routes
 from app.routes.messages import messages_bp
+from app.routes.users import users_bp
 
 jwt_blocklist = set()
 
@@ -55,6 +56,7 @@ def create_app(config_class=Config):
 
     register_routes(api)
     app.register_blueprint(messages_bp)
+    app.register_blueprint(users_bp)
 
 
     with app.app_context():

@@ -1,6 +1,5 @@
 from flask import request, Blueprint, jsonify
 from flask_restx import Namespace, Resource
-from flask import request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
@@ -9,6 +8,21 @@ from app.extensions import db
 import os
 
 user_ns = Namespace('users', description='User operations')
+users_bp = Blueprint('users', __name__, url_prefix='/users')
+
+@user_ns.route('/')
+class UserList(Resource):
+    @jwt_required()
+    def get(self):
+        query = request.args.get('q', '').strip()
+        user_type = request.args.get('type', '').strip()
+        user_id = int(get_jwt_identity())
+        users = User.query.filter(User.id != user_id)
+        if user_type and user_type != 'all':
+            users = users.filter(User.role == user_type)
+        if query:
+            users = users.filter(db.or_(User.first_name.ilike(f'%{query}%'), User.last_name.ilike(f'%{query}%'), User.email.ilike(f'%{query}%')))
+        return [{'id': u.id, 'first_name': u.first_name, 'last_name': u.last_name, 'email': u.email, 'role': u.role} for u in users.limit(20).all()]
 
 @user_ns.route('/<int:id>')
 class UserDetail(Resource):
@@ -19,7 +33,7 @@ class UserDetail(Resource):
     
     @jwt_required()
     def put(self, id):
-        if get_jwt_identity() != id:
+        if int(get_jwt_identity()) != id:
             user_ns.abort(403, 'Forbidden')
         user = User.query.get_or_404(id)
         for key, value in request.json.items():
@@ -32,7 +46,7 @@ class UserDetail(Resource):
 class UserPassword(Resource):
     @jwt_required()
     def put(self, id):
-        if get_jwt_identity() != id:
+        if int(get_jwt_identity()) != id:
             user_ns.abort(403, 'Forbidden')
         user = User.query.get_or_404(id)
         if not check_password_hash(user.password, request.json.get('current_password', '')):
@@ -45,7 +59,7 @@ class UserPassword(Resource):
 class UserPhotoUpload(Resource):
     @jwt_required()
     def post(self, id):
-        if get_jwt_identity() != id:
+        if int(get_jwt_identity()) != id:
             user_ns.abort(403, 'Forbidden')
         user = User.query.get_or_404(id)
         file = request.files.get('file')
@@ -59,13 +73,33 @@ class UserPhotoUpload(Resource):
         db.session.commit()
         return {'url': url}
 
-@user_ns.route('/<int:user_id>/upload-photo')
-class UserPhotoUpload(Resource):
-    @jwt_required()
-    def get(self):
-        query = request.args.get('q', '').strip()
-        user_id = get_jwt_identity()
-        users = User.query.filter(User.id != user_id)
-        if query:
-            users = users.filter(db.or_(User.first_name.ilike(f'%{query}%'), User.last_name.ilike(f'%{query}%'), User.email.ilike(f'%{query}%')))
-        return [{'id': u.id, 'first_name': u.first_name, 'last_name': u.last_name, 'email': u.email, 'role': u.role} for u in users.limit(20).all()]
+# Blueprint routes for direct /users access
+@users_bp.route('', methods=['GET'])
+@jwt_required()
+def get_users():
+    user_id = int(get_jwt_identity())
+    query = request.args.get('q', '').strip()
+    user_type = request.args.get('type', '').strip()
+    
+    users = User.query.filter(User.id != user_id)
+    if user_type and user_type != 'all':
+        users = users.filter(User.role == user_type)
+    if query:
+        users = users.filter(db.or_(User.first_name.ilike(f'%{query}%'), User.last_name.ilike(f'%{query}%'), User.email.ilike(f'%{query}%')))
+    
+    return jsonify([{'id': u.id, 'first_name': u.first_name, 'last_name': u.last_name, 'email': u.email, 'role': u.role} for u in users.limit(20).all()])
+
+@users_bp.route('/search', methods=['GET'])
+@jwt_required()
+def search_users():
+    user_id = int(get_jwt_identity())
+    query = request.args.get('q', '').strip()
+    user_type = request.args.get('type', '').strip()
+    
+    users = User.query.filter(User.id != user_id)
+    if user_type and user_type != 'all':
+        users = users.filter(User.role == user_type)
+    if query:
+        users = users.filter(db.or_(User.first_name.ilike(f'%{query}%'), User.last_name.ilike(f'%{query}%'), User.email.ilike(f'%{query}%')))
+    
+    return jsonify([{'id': u.id, 'first_name': u.first_name, 'last_name': u.last_name, 'email': u.email, 'role': u.role} for u in users.limit(20).all()])
