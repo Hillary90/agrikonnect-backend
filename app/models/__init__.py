@@ -5,5 +5,6 @@ from .post import Post
 from .comment import Comment
 from .community import Community
 from .message import Message
+from .notification import Notification
 
-__all__ = ['BaseModel', 'User', 'Post', 'Comment', 'Community', 'Message', 'followers', 'community_members']
+__all__ = ['BaseModel', 'User', 'Post', 'Comment', 'Community', 'Message', 'Notification', 'followers', 'community_members']
