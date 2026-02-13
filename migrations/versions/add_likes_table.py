@@ -17,19 +17,23 @@ depends_on = None
 
 
 def upgrade():
-    op.create_table('likes',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), nullable=True),
-    sa.Column('updated_at', sa.DateTime(), nullable=True),
-    sa.Column('post_id', sa.Integer(), nullable=False),
-    sa.Column('user_id', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['post_id'], ['posts.id'], ),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('post_id', 'user_id', name='unique_post_like')
-    )
-    op.create_index(op.f('ix_likes_post_id'), 'likes', ['post_id'], unique=False)
-    op.create_index(op.f('ix_likes_user_id'), 'likes', ['user_id'], unique=False)
+    # Check if likes table exists before creating
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    if 'likes' not in inspector.get_table_names():
+        op.create_table('likes',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('created_at', sa.DateTime(), nullable=True),
+        sa.Column('updated_at', sa.DateTime(), nullable=True),
+        sa.Column('post_id', sa.Integer(), nullable=False),
+        sa.Column('user_id', sa.Integer(), nullable=False),
+        sa.ForeignKeyConstraint(['post_id'], ['posts.id'], ),
+        sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('post_id', 'user_id', name='unique_post_like')
+        )
+        op.create_index(op.f('ix_likes_post_id'), 'likes', ['post_id'], unique=False)
+        op.create_index(op.f('ix_likes_user_id'), 'likes', ['user_id'], unique=False)
 
 
 def downgrade():
