@@ -1,6 +1,7 @@
 from flask_restx import Namespace, Resource, fields
 from flask import request, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from sqlalchemy.orm import joinedload
 from ..models import Post, Comment, User
 from ..extensions import db
 from ..utils.validation import (
@@ -28,7 +29,6 @@ comment_model = post_ns.model('Comment', {
 
 @post_ns.route('')
 class PostList(Resource):
-    @jwt_required()
     @post_ns.doc('list_posts', params={
         'page': 'Page number (default: 1)',
         'per_page': 'Items per page (default: 20, max: 100)',
@@ -50,21 +50,41 @@ class PostList(Resource):
             if author_id:
                 query = query.filter_by(author_id=author_id)
             
-            # Use eager loading to prevent N+1 queries
-            query = query.options(db.joinedload(Post.author))
+            # Use eager loading to prevent N+1 queries (guard against mapping timing issues)
+            try:
+                query = query.options(joinedload(Post.author))
+            except AttributeError:
+                # If relationship attribute isn't available yet (import/mapping order), skip eager load
+                current_app.logger.warning('Post.author relationship not available for joinedload; skipping eager load')
             
             paginated = query.order_by(Post.created_at.desc()).paginate(
                 page=page, per_page=per_page, error_out=False
             )
             
+            posts_list = []
+            current_user_id = None
+            try:
+                current_user_id = int(get_jwt_identity())
+            except:
+                pass
+            
+            for p in paginated.items:
+                try:
+                    posts_list.append(p.to_dict(current_user_id=current_user_id))
+                except Exception:
+                    current_app.logger.exception('Failed to serialize post id=%s', getattr(p, 'id', None))
+                    # skip problematic post
+                    continue
+
             return {
-                'posts': [p.to_dict() for p in paginated.items],
+                'posts': posts_list,
                 'total': paginated.total,
                 'pages': paginated.pages,
                 'current_page': page,
                 'per_page': per_page
             }
         except Exception as e:
+            current_app.logger.exception('Failed to fetch posts')
             return {'error': 'Failed to fetch posts'}, 500
     
     @jwt_required()
@@ -259,7 +279,24 @@ class PostComments(Resource):
             )
             
             db.session.add(comment)
+            
+            # Create notification if not commenting on own post
+            if post.author_id != int(current_user_id):
+                from ..models import Notification
+                user = User.query.get(current_user_id)
+                notification = Notification(
+                    user_id=post.author_id,
+                    title='New Comment',
+                    message=f"{user.first_name} {user.last_name} commented on your post",
+                    type='comment',
+                    related_id=post_id
+                )
+                db.session.add(notification)
+            
             db.session.commit()
+            
+            # Refresh to load the author relationship
+            db.session.refresh(comment)
             
             return {'message': 'Comment added', 'comment': comment.to_dict()}, 201
         except Exception as e:
@@ -272,10 +309,61 @@ class PostLike(Resource):
     @post_ns.doc('like_post')
     def post(self, post_id):
         """Like a post"""
-        return {'message': 'Post liked', 'liked': True, 'likeCount': 1}, 200
+        try:
+            from ..models import Like, Notification
+            current_user_id = int(get_jwt_identity())
+            
+            post = Post.query.get(post_id)
+            if not post:
+                return {'error': 'Post not found'}, 404
+            
+            # Check if already liked
+            existing_like = Like.query.filter_by(post_id=post_id, user_id=current_user_id).first()
+            if existing_like:
+                return {'message': 'Already liked', 'liked': True, 'likeCount': len(post.likes)}, 200
+            
+            # Create like
+            like = Like(post_id=post_id, user_id=current_user_id)
+            db.session.add(like)
+            
+            # Create notification if not liking own post
+            if post.author_id != current_user_id:
+                user = User.query.get(current_user_id)
+                notification = Notification(
+                    user_id=post.author_id,
+                    title='New Like',
+                    message=f"{user.first_name} {user.last_name} liked your post",
+                    type='like',
+                    related_id=post_id
+                )
+                db.session.add(notification)
+            
+            db.session.commit()
+            return {'message': 'Post liked', 'liked': True, 'likeCount': len(post.likes)}, 200
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.exception('Failed to like post')
+            return {'error': 'Failed to like post'}, 500
     
     @jwt_required()
     @post_ns.doc('unlike_post')
     def delete(self, post_id):
         """Unlike a post"""
-        return {'message': 'Post unliked', 'liked': False, 'likeCount': 0}, 200
+        try:
+            from ..models import Like
+            current_user_id = int(get_jwt_identity())
+            
+            post = Post.query.get(post_id)
+            if not post:
+                return {'error': 'Post not found'}, 404
+            
+            like = Like.query.filter_by(post_id=post_id, user_id=current_user_id).first()
+            if like:
+                db.session.delete(like)
+                db.session.commit()
+            
+            return {'message': 'Post unliked', 'liked': False, 'likeCount': len(post.likes)}, 200
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.exception('Failed to unlike post')
+            return {'error': 'Failed to unlike post'}, 500

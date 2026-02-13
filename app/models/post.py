@@ -17,11 +17,20 @@ class Post(BaseModel):
     )
 
     # Relationships
-    comments = db.relationship('Comment', backref='post', lazy=True,
-                              cascade='all, delete-orphan')
+    author = db.relationship('User', foreign_keys=[author_id], backref='authored_posts')
+    comments = db.relationship('Comment', foreign_keys='Comment.post_id', lazy=True,
+                            cascade='all, delete-orphan')
+    likes = db.relationship('Like', foreign_keys='Like.post_id', lazy=True,
+                            cascade='all, delete-orphan')
 
-    def to_dict(self):
+    def to_dict(self, current_user_id=None):
         base_dict = super().to_dict()
+        like_count = len(self.likes) if hasattr(self, 'likes') else 0
+        is_liked = False
+        
+        if current_user_id and hasattr(self, 'likes'):
+            is_liked = any(like.user_id == current_user_id for like in self.likes)
+        
         return {
             **base_dict,
             'title': self.title,
@@ -34,6 +43,9 @@ class Post(BaseModel):
                 'last_name': getattr(self.author, 'last_name', None),
                 'name': f"{getattr(self.author, 'first_name', '')} {getattr(self.author, 'last_name', '')}".strip() or None
             } if getattr(self, 'author', None) else None,
+            'likeCount': like_count,
+            'commentCount': len(self.comments) if hasattr(self, 'comments') else 0,
+            'isLiked': is_liked,
         }
 
     @property

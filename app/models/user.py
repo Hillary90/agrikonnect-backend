@@ -41,10 +41,10 @@ class User(BaseModel):
     )
 
     # Relationships
-    posts = db.relationship('Post', backref='author', lazy=True,
-                           cascade='all, delete-orphan')
-    comments = db.relationship('Comment', backref='author', lazy=True,
-                              cascade='all, delete-orphan')
+    posts = db.relationship('Post', foreign_keys='Post.author_id', lazy=True,
+                        cascade='all, delete-orphan')
+    comments = db.relationship('Comment', foreign_keys='Comment.author_id', lazy=True,
+                            cascade='all, delete-orphan')
     messages_sent = db.relationship('Message', foreign_keys='Message.sender_id',
                                    backref='sender', lazy=True,
                                    cascade='all, delete-orphan')
@@ -63,6 +63,16 @@ class User(BaseModel):
 
     def to_dict(self, include_stats=False, current_user_id=None):
         base_dict = super().to_dict()
+        
+        # Helper to construct full URL for images
+        def get_full_url(path):
+            if not path:
+                return None
+            if path.startswith('http'):
+                return path
+            # Return path as-is, frontend will handle it
+            return path
+        
         data = {
             **base_dict,
             'email': self.email,
@@ -72,8 +82,8 @@ class User(BaseModel):
             'bio': self.bio,
             'location': self.location,
             'phone': self.phone,
-            'profile_image': self.profile_image,
-            'cover_image': self.cover_image,
+            'profile_image': get_full_url(self.profile_image),
+            'cover_image': get_full_url(self.cover_image),
             'farm_size': self.farm_size,
             'crops': self.crops,
             'is_public': self.is_public,

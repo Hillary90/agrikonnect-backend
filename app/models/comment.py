@@ -9,6 +9,11 @@ class Comment(BaseModel):
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
     community_id = db.Column(db.Integer, db.ForeignKey('communities.id'), nullable=True, index=True)
 
+    # ADD THESE RELATIONSHIPS
+    author = db.relationship('User', foreign_keys=[author_id])
+    post = db.relationship('Post', foreign_keys=[post_id])
+    community = db.relationship('Community', foreign_keys=[community_id], backref='community_messages')
+
     # Constraints
     __table_args__ = (
         db.CheckConstraint("length(content) >= 1", name='comment_content_not_empty'),
@@ -22,6 +27,13 @@ class Comment(BaseModel):
             'content': self.content,
             'post_id': self.post_id,
             'author_id': self.author_id,
+            'author': {
+                'id': self.author.id,
+                'first_name': self.author.first_name,
+                'last_name': self.author.last_name,
+                'name': f"{self.author.first_name} {self.author.last_name}".strip(),
+                'profile_image': self.author.profile_image,
+            } if self.author else None,
         }
 
     def __repr__(self):
