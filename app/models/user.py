@@ -22,10 +22,10 @@ class User(BaseModel):
     is_active = db.Column(db.Boolean, default=True, nullable=False,
                           server_default='true')
     
-    # Expert-specific fields - Commented out for production
-    # title = db.Column(db.String(100))  # e.g., "Agricultural Specialist"
-    # specialties = db.Column(db.JSON)  # List of specialties
-    # is_verified = db.Column(db.Boolean, default=False)
+    # Expert-specific fields
+    title = db.Column(db.String(100))
+    specialties = db.Column(db.JSON)
+    is_verified = db.Column(db.Boolean, default=False)
 
     # Password reset fields
     password_reset_token = db.Column(db.String(255), nullable=True)
