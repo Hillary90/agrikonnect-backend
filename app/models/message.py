@@ -17,6 +17,10 @@ class Message(BaseModel):
         db.Index('idx_message_created_at', 'created_at'),
     )
 
+    # Relationships
+    sender = db.relationship('User', foreign_keys=[sender_id], backref='sent_messages')
+    receiver = db.relationship('User', foreign_keys=[receiver_id], backref='received_messages')
+
     def to_dict(self):
         base_dict = super().to_dict()
         return {
@@ -25,6 +29,18 @@ class Message(BaseModel):
             'sender_id': self.sender_id,
             'receiver_id': self.receiver_id,
             'is_read': self.is_read,
+            'sender': {
+                'id': self.sender.id,
+                'first_name': self.sender.first_name,
+                'last_name': self.sender.last_name,
+                'email': self.sender.email,
+            } if hasattr(self, 'sender') and self.sender else None,
+            'receiver': {
+                'id': self.receiver.id,
+                'first_name': self.receiver.first_name,
+                'last_name': self.receiver.last_name,
+                'email': self.receiver.email,
+            } if hasattr(self, 'receiver') and self.receiver else None,
         }
 
     def mark_as_read(self):
