@@ -97,19 +97,25 @@ class PostList(Resource):
             data = request.form.to_dict() if request.form else (request.get_json(silent=True) or {})
             current_user_id = get_jwt_identity()
 
-            # Validate required fields (content or title required)
-            is_valid, error = validate_required_fields(data, ['title', 'content'])
-            if not is_valid:
-                return {'error': error}, 400
+            # Validate at least title or content is provided
+            title = sanitize_string(data.get('title', ''), 255)
+            content = sanitize_string(data.get('content', ''))
+            
+            if not title and not content:
+                return {'error': 'Title or content is required'}, 400
 
-            # Sanitize and validate title
-            title = sanitize_string(data.get('title'), 255)
+            # Use title as content if content is empty, or vice versa
+            if not title:
+                title = content[:255]
+            if not content:
+                content = title
+
+            # Validate title length
             is_valid, error = validate_string_length(title, 1, 255, 'Title')
             if not is_valid:
                 return {'error': error}, 400
 
-            # Sanitize and validate content
-            content = sanitize_string(data.get('content'))
+            # Validate content length
             is_valid, error = validate_string_length(content, 1, None, 'Content')
             if not is_valid:
                 return {'error': error}, 400
