@@ -175,7 +175,7 @@ class UserPhotoUpload(Resource):
             return {'error': 'Failed to upload photo'}, 500
 
 # Blueprint routes for direct /users access
-@users_bp.route('', methods=['GET'])
+@users_bp.route('', methods=['GET'], strict_slashes=False)
 @jwt_required()
 def get_users():
     user_id = int(get_jwt_identity())
