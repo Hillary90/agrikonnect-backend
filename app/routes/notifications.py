@@ -54,11 +54,14 @@ class NotificationReadAll(Resource):
 
 @notification_ns.route('/unread-count')
 class NotificationUnreadCount(Resource):
-    @jwt_required()
+    @jwt_required(optional=True)
     def get(self):
-        """Get unread notification count"""
+        """Get unread notification count (returns 0 if unauthenticated)"""
         from ..models.notification import Notification
-        user_id = int(get_jwt_identity())
+        user_identity = get_jwt_identity()
+        if not user_identity:
+            return {'count': 0}, 200
+        user_id = int(user_identity)
         count = Notification.query.filter_by(user_id=user_id, is_read=False).count()
         return {'count': count}, 200
 

@@ -256,6 +256,41 @@ def reply_message():
     return jsonify(message.to_dict()), 201
 
 
+@messages_bp.route('/typing', methods=['POST', 'OPTIONS'], strict_slashes=False)
+@cross_origin(origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:5000"], supports_credentials=True)
+def legacy_typing():
+    if request.method == 'OPTIONS':
+        return '', 200
+    try:
+        verify_jwt_in_request()
+        user_id = get_jwt_identity()
+        data = request.get_json() or {}
+        other = data.get('other_user_id')
+        # For now, just accept and return ok — frontend can poll for typing status or integrate websockets later
+        return jsonify({'status': 'ok'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 401
+
+
+@messages_bp.route('/mark-read', methods=['POST', 'OPTIONS'], strict_slashes=False)
+@cross_origin(origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:5000"], supports_credentials=True)
+@jwt_required()
+def legacy_mark_conversation_read():
+    data = request.get_json() or {}
+    other_user_id = data.get('other_user_id')
+    user_id = get_jwt_identity()
+    if not other_user_id:
+        return jsonify({'error': 'other_user_id required'}), 400
+    messages = Message.query.filter(
+        ((Message.sender_id == other_user_id) & (Message.receiver_id == user_id))
+    ).all()
+    for m in messages:
+        if not m.is_read:
+            m.is_read = True
+    db.session.commit()
+    return jsonify({'status': 'ok'}), 200
+
+
 @messages_bp.route('/search-users', methods=['GET', 'OPTIONS'], strict_slashes=False)
 @cross_origin(origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:5000"], supports_credentials=True)
 @jwt_required()

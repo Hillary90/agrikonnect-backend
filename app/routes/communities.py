@@ -36,7 +36,6 @@ community_input = community_ns.model('CommunityInput', {
 @community_ns.route('')
 class CommunityList(Resource):
     @community_ns.doc('list_communities')
-    @community_ns.marshal_list_with(community_model)
     @jwt_required(optional=True)
     def get(self):
         """Get all communities"""
@@ -216,16 +215,32 @@ class CommunityMessages(Resource):
     @jwt_required()
     def get(self, id):
         """Get community chat messages"""
-        from ..models import Comment
-        messages = Comment.query.filter_by(community_id=id).order_by(Comment.created_at.asc()).limit(100).all()
-        return {'messages': [{'id': m.id, 'content': m.content, 'author': {'name': m.author.full_name}, 'created_at': m.created_at.isoformat()} for m in messages]}
+        try:
+            from ..models import Comment, User
+            
+            messages = Comment.query.filter_by(community_id=id).order_by(Comment.created_at.asc()).limit(100).all()
+            
+            result = []
+            for m in messages:
+                author = User.query.get(m.author_id)
+                result.append({
+                    'id': m.id, 
+                    'content': m.content, 
+                    'author': {'name': author.full_name if author else 'Unknown'}, 
+                    'created_at': m.created_at.isoformat()
+                })
+            
+            return {'messages': result}
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return {'error': str(e)}, 500
     
     @jwt_required()
     def post(self, id):
         """Send a message to community chat"""
         try:
-            from ..models import Comment
-            from ..models.notification import Notification
+            from ..models import Comment, User
             user_id = int(get_jwt_identity())
             data = request.get_json()
             
@@ -247,7 +262,15 @@ class CommunityMessages(Resource):
             db.session.add(message)
             db.session.commit()
             
-            return {'id': message.id, 'content': message.content, 'author': {'name': message.author.full_name}, 'created_at': message.created_at.isoformat()}, 201
+            author = User.query.get(user_id)
+            return {
+                'id': message.id, 
+                'content': message.content, 
+                'author': {'name': author.full_name if author else 'Unknown'}, 
+                'created_at': message.created_at.isoformat()
+            }, 201
         except Exception as e:
             db.session.rollback()
-            return {'error': 'Failed to send message'}, 500
+            import traceback
+            traceback.print_exc()
+            return {'error': str(e)}, 500

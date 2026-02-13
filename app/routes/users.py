@@ -68,10 +68,23 @@ class UserDetail(Resource):
             if 'bio' in data:
                 bio = sanitize_string(data['bio'], 500)
                 user.bio = bio
-            
+
             if 'location' in data:
                 location = sanitize_string(data['location'], 100)
                 user.location = location
+
+            if 'phone' in data:
+                phone = sanitize_string(data['phone'], 20)
+                user.phone = phone
+
+            if 'farm_size' in data:
+                user.farm_size = sanitize_string(data.get('farm_size'), 50)
+
+            if 'crops' in data:
+                user.crops = sanitize_string(data.get('crops'), 255)
+
+            if 'is_public' in data:
+                user.is_public = bool(data.get('is_public'))
             
             db.session.commit()
             return user.to_dict(include_stats=True, current_user_id=id)
@@ -191,3 +204,15 @@ def search_users():
         users = users.filter(db.or_(User.first_name.ilike(f'%{query}%'), User.last_name.ilike(f'%{query}%'), User.email.ilike(f'%{query}%')))
     
     return jsonify([{'id': u.id, 'first_name': u.first_name, 'last_name': u.last_name, 'email': u.email, 'role': u.role} for u in users.limit(20).all()])
+
+
+@user_ns.route('/<int:id>/communities')
+class UserCommunities(Resource):
+    @jwt_required(optional=True)
+    def get(self, id):
+        """Get communities the user is a member of"""
+        user = User.query.get_or_404(id)
+        current_user_id = get_jwt_identity()
+        # `communities` is a backref on the User model
+        communities = list(getattr(user, 'communities', []))
+        return [c.to_dict(current_user_id, include_counts=True) for c in communities]

@@ -25,7 +25,6 @@ expert_model = expert_ns.model('Expert', {
 @expert_ns.route('')
 class ExpertList(Resource):
     @expert_ns.doc('list_experts')
-    @expert_ns.marshal_list_with(expert_model)
     @jwt_required(optional=True)
     def get(self):
         """Get all experts"""

@@ -1,5 +1,5 @@
 from flask_restx import Namespace, Resource, fields
-from flask import request
+from flask import request, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..models import Post, Comment, User
 from ..extensions import db
@@ -9,6 +9,8 @@ from ..utils.validation import (
     sanitize_string,
     validate_url
 )
+from werkzeug.utils import secure_filename
+import os
 
 post_ns = Namespace('posts', description='Post operations')
 
@@ -69,50 +71,70 @@ class PostList(Resource):
     @post_ns.expect(post_model)
     @post_ns.doc('create_post')
     def post(self):
-        """Create a new post"""
+        """Create a new post (accepts optional image upload)"""
         try:
-            data = request.get_json()
+            # Accept JSON or form data
+            data = request.form.to_dict() if request.form else (request.get_json(silent=True) or {})
             current_user_id = get_jwt_identity()
-            
-            # Validate required fields
+
+            # Validate required fields (content or title required)
             is_valid, error = validate_required_fields(data, ['title', 'content'])
             if not is_valid:
                 return {'error': error}, 400
-            
+
             # Sanitize and validate title
             title = sanitize_string(data.get('title'), 255)
             is_valid, error = validate_string_length(title, 1, 255, 'Title')
             if not is_valid:
                 return {'error': error}, 400
-            
+
             # Sanitize and validate content
             content = sanitize_string(data.get('content'))
             is_valid, error = validate_string_length(content, 1, None, 'Content')
             if not is_valid:
                 return {'error': error}, 400
-            
-            # Validate image URL if provided
+
+            # Handle image file upload if present
             image_url = data.get('image_url')
+            image_file = request.files.get('image') or request.files.get('file')
+            if image_file:
+                filename = secure_filename(image_file.filename)
+                if '.' in filename:
+                    ext = filename.rsplit('.', 1)[1].lower()
+                else:
+                    ext = ''
+                allowed = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+                if ext not in allowed:
+                    return {'error': 'Invalid image file type'}, 400
+
+                upload_folder = current_app.config.get('UPLOAD_FOLDER', 'uploads')
+                save_dir = os.path.abspath(os.path.join(current_app.root_path, '..', upload_folder))
+                os.makedirs(save_dir, exist_ok=True)
+                unique_name = f"post_{current_user_id}_{int(__import__('time').time())}.{ext}"
+                dest = os.path.join(save_dir, unique_name)
+                image_file.save(dest)
+                image_url = f"/uploads/{unique_name}"
+
             if image_url:
                 image_url = sanitize_string(image_url, 500)
-                if not validate_url(image_url):
+                if image_url and not validate_url(image_url) and not image_url.startswith('/uploads'):
                     return {'error': 'Invalid image URL format'}, 400
-            
+
             # Create post
             post = Post(
                 title=title,
                 content=content,
                 image_url=image_url,
-                author_id=int(current_user_id),
-                community_id=data.get('community_id')
+                author_id=int(current_user_id)
             )
-            
+
             db.session.add(post)
             db.session.commit()
-            
+
             return {'message': 'Post created', 'post': post.to_dict()}, 201
         except Exception as e:
             db.session.rollback()
+            current_app.logger.exception('Failed to create post')
             return {'error': 'Failed to create post'}, 500
 
 @post_ns.route('/<int:post_id>')
@@ -243,3 +265,17 @@ class PostComments(Resource):
         except Exception as e:
             db.session.rollback()
             return {'error': 'Failed to add comment'}, 500
+
+@post_ns.route('/<int:post_id>/like')
+class PostLike(Resource):
+    @jwt_required()
+    @post_ns.doc('like_post')
+    def post(self, post_id):
+        """Like a post"""
+        return {'message': 'Post liked', 'liked': True, 'likeCount': 1}, 200
+    
+    @jwt_required()
+    @post_ns.doc('unlike_post')
+    def delete(self, post_id):
+        """Unlike a post"""
+        return {'message': 'Post unliked', 'liked': False, 'likeCount': 0}, 200

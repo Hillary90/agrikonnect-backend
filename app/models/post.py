@@ -28,6 +28,12 @@ class Post(BaseModel):
             'content': self.content,
             'image_url': self.image_url,
             'author_id': self.author_id,
+            'author': {
+                'id': self.author.id,
+                'first_name': getattr(self.author, 'first_name', None),
+                'last_name': getattr(self.author, 'last_name', None),
+                'name': f"{getattr(self.author, 'first_name', '')} {getattr(self.author, 'last_name', '')}".strip() or None
+            } if getattr(self, 'author', None) else None,
         }
 
     @property
