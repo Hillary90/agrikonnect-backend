@@ -14,7 +14,7 @@ from app.utils.validation import (
 import os
 
 user_ns = Namespace('users', description='User operations')
-users_bp = Blueprint('users', __name__, url_prefix='/users')
+users_bp = Blueprint('users', __name__)
 
 @user_ns.route('/')
 class UserList(Resource):
