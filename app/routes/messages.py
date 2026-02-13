@@ -1,7 +1,6 @@
 from flask import request, Blueprint, jsonify
 from flask_restx import Namespace, Resource
 from flask_jwt_extended import jwt_required, get_jwt_identity, verify_jwt_in_request
-from flask_cors import cross_origin
 from app.models.user import User
 from app.models.message import Message
 from app.extensions import db
@@ -75,7 +74,6 @@ messages_bp = Blueprint('messages', __name__)
 
 
 @messages_bp.route('/messages', methods=['POST'], strict_slashes=False)
-@cross_origin(origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:5000"], supports_credentials=True)
 def legacy_send_message():
     if request.method == 'OPTIONS':
         return '', 200
@@ -122,7 +120,6 @@ def legacy_send_message():
 
 
 @messages_bp.route('/messages/inbox', methods=['GET'], strict_slashes=False)
-@cross_origin(origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:5000"], supports_credentials=True)
 def legacy_inbox():
     if request.method == 'OPTIONS':
         return '', 200
@@ -165,7 +162,6 @@ def legacy_inbox():
 
 
 @messages_bp.route('/messages/sent', methods=['GET'], strict_slashes=False)
-@cross_origin(origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:5000"], supports_credentials=True)
 @jwt_required()
 def legacy_sent_messages():
     user_id = get_jwt_identity()
@@ -174,7 +170,6 @@ def legacy_sent_messages():
 
 
 @messages_bp.route('/messages/<int:message_id>/read', methods=['PATCH'], strict_slashes=False)
-@cross_origin(origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:5000"], supports_credentials=True)
 @jwt_required()
 def legacy_mark_as_read(message_id):
     user_id = get_jwt_identity()
@@ -189,7 +184,6 @@ def legacy_mark_as_read(message_id):
 
 
 @messages_bp.route('/messages/<int:other_user_id>', methods=['GET'], strict_slashes=False)
-@cross_origin(origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:5000"], supports_credentials=True)
 def get_conversation_short(other_user_id):
     if request.method == 'OPTIONS':
         return '', 200
@@ -221,7 +215,6 @@ def get_conversation_short(other_user_id):
 
 
 @messages_bp.route('/messages/conversation/<int:other_user_id>', methods=['GET'], strict_slashes=False)
-@cross_origin(origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:5000"], supports_credentials=True)
 @jwt_required()
 def get_conversation(other_user_id):
     user_id = get_jwt_identity()
@@ -233,7 +226,6 @@ def get_conversation(other_user_id):
 
 
 @messages_bp.route('/messages/reply', methods=['POST'], strict_slashes=False)
-@cross_origin(origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:5000"], supports_credentials=True)
 @jwt_required()
 def reply_message():
     user_id = get_jwt_identity()
@@ -257,7 +249,6 @@ def reply_message():
 
 
 @messages_bp.route('/messages/typing', methods=['POST'], strict_slashes=False)
-@cross_origin(origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:5000"], supports_credentials=True)
 def legacy_typing():
     if request.method == 'OPTIONS':
         return '', 200
@@ -273,7 +264,6 @@ def legacy_typing():
 
 
 @messages_bp.route('/messages/mark-read', methods=['POST'], strict_slashes=False)
-@cross_origin(origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:5000"], supports_credentials=True)
 @jwt_required()
 def legacy_mark_conversation_read():
     data = request.get_json() or {}
@@ -292,7 +282,6 @@ def legacy_mark_conversation_read():
 
 
 @messages_bp.route('/messages/search-users', methods=['GET'], strict_slashes=False)
-@cross_origin(origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:5000"], supports_credentials=True)
 @jwt_required()
 def search_users():
     try:
