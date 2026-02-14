@@ -10,6 +10,7 @@ from ..utils.validation import (
     sanitize_string,
     validate_url
 )
+from ..services.cloudinary_service import CloudinaryService
 from werkzeug.utils import secure_filename
 import os
 
@@ -133,13 +134,12 @@ class PostList(Resource):
                 if ext not in allowed:
                     return {'error': 'Invalid image file type'}, 400
 
-                upload_folder = current_app.config.get('UPLOAD_FOLDER', 'uploads')
-                save_dir = os.path.abspath(os.path.join(current_app.root_path, '..', upload_folder))
-                os.makedirs(save_dir, exist_ok=True)
-                unique_name = f"post_{current_user_id}_{int(__import__('time').time())}.{ext}"
-                dest = os.path.join(save_dir, unique_name)
-                image_file.save(dest)
-                image_url = f"/uploads/{unique_name}"
+                try:
+                    cloudinary = CloudinaryService()
+                    image_url = cloudinary.upload_image(image_file, folder='agrikonnect/posts')
+                except Exception as e:
+                    current_app.logger.exception('Cloudinary upload failed')
+                    return {'error': 'Failed to upload image'}, 500
 
             if image_url:
                 image_url = sanitize_string(image_url, 500)

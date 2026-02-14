@@ -3,6 +3,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.extensions import db
 from app.models.marketplace import Product, Order, Payment
 from app.services.mpesa_service import MpesaService
+from app.services.cloudinary_service import CloudinaryService
 
 marketplace_bp = Blueprint('marketplace', __name__)
 
@@ -48,10 +49,6 @@ def get_product(product_id):
 @marketplace_bp.route('/upload-image', methods=['POST'])
 @jwt_required()
 def upload_product_image():
-    from werkzeug.utils import secure_filename
-    import os
-    from flask import current_app
-    
     if 'file' not in request.files:
         return jsonify({'error': 'No file'}), 400
     
@@ -59,13 +56,12 @@ def upload_product_image():
     if file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
     
-    filename = secure_filename(file.filename)
-    user_id = get_jwt_identity()
-    filename = f'product_{user_id}_{filename}'
-    filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
-    file.save(filepath)
-    
-    return jsonify({'image_url': f'/uploads/{filename}'})
+    try:
+        cloudinary = CloudinaryService()
+        image_url = cloudinary.upload_image(file)
+        return jsonify({'image_url': image_url})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @marketplace_bp.route('/orders', methods=['POST'])
 @jwt_required()
