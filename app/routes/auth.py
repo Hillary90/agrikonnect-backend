@@ -103,12 +103,10 @@ class Register(Resource):
             # Create new user
             hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
             
-            # Handle specialties - convert string to array if needed
-            specialties = data.get('specialties')
-            if specialties and isinstance(specialties, str):
-                specialties = [specialties]
+            # Handle specialty field
+            specialty = data.get('specialty') or data.get('specialties')
             
-            # Build user kwargs, only include specialties if column exists
+            # Build user kwargs
             user_kwargs = {
                 'email': email,
                 'password': hashed_password,
@@ -117,9 +115,9 @@ class Register(Resource):
                 'role': role
             }
             
-            # Only add specialties if the column exists in the model
-            if role == 'expert' and specialties and hasattr(User, 'specialties'):
-                user_kwargs['specialties'] = specialties
+            # Add specialty if provided and user is expert
+            if role == 'expert' and specialty:
+                user_kwargs['specialty'] = specialty
             
             user = User(**user_kwargs)
 

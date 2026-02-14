@@ -58,8 +58,8 @@ class ExpertSpecialties(Resource):
         experts = User.query.filter_by(role='expert', is_active=True).all()
         specialties = set()
         for expert in experts:
-            if hasattr(expert, 'specialties') and expert.specialties:
-                specialties.update(expert.specialties)
+            if expert.specialty:
+                specialties.add(expert.specialty)
         return {'specialties': sorted(list(specialties))}
 
 @expert_ns.route('/<int:id>')

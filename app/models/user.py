@@ -12,6 +12,7 @@ class User(BaseModel):
     last_name = db.Column(db.String(50), nullable=False)
     role = db.Column(db.String(20), nullable=False, default='farmer',
                      server_default='farmer')
+    specialty = db.Column(db.String(100), nullable=True)
     bio = db.Column(db.Text)
     location = db.Column(db.String(100))
     profile_image = db.Column(db.String(255))
@@ -80,7 +81,7 @@ class User(BaseModel):
         if self.role == 'expert':
             data.update({
                 'title': None,
-                'specialties': [],
+                'specialties': [self.specialty] if self.specialty else [],
                 'is_verified': False
             })
         
@@ -130,7 +131,7 @@ class User(BaseModel):
             'avatar_url': self.profile_image,
             'title': 'Agricultural Expert',
             'location': self.location,
-            'specialties': [],
+            'specialties': [self.specialty] if self.specialty else [],
             'followers': followers_count,
             'posts': len(self.posts),
             'isVerified': False,
