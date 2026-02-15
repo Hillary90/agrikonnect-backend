@@ -23,7 +23,7 @@ class Post(BaseModel):
     likes = db.relationship('Like', foreign_keys='Like.post_id', lazy=True,
                             cascade='all, delete-orphan')
 
-    def to_dict(self, current_user_id=None):
+    def to_dict(self, current_user_id=None, include_comments=True):
         base_dict = super().to_dict()
         like_count = len(self.likes) if hasattr(self, 'likes') else 0
         is_liked = False
@@ -31,7 +31,7 @@ class Post(BaseModel):
         if current_user_id and hasattr(self, 'likes'):
             is_liked = any(like.user_id == current_user_id for like in self.likes)
         
-        return {
+        result = {
             **base_dict,
             'title': self.title,
             'content': self.content,
@@ -47,6 +47,12 @@ class Post(BaseModel):
             'commentCount': len(self.comments) if hasattr(self, 'comments') else 0,
             'isLiked': is_liked,
         }
+        
+        # Include comments array if requested
+        if include_comments and hasattr(self, 'comments'):
+            result['comments'] = [c.to_dict() for c in self.comments]
+        
+        return result
 
     @property
     def comment_count(self):
